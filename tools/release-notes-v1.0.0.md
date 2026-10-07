@@ -29,7 +29,7 @@ HACS → Integrations → 右上角 ⋮ → Custom repositories → 添加本仓
 
 ## 开发自测
 
-`python tools/selfcheck.py` —— 不需要安装 Home Assistant，用桩模块加载集成，跑 161 项检查：协议字节级断言（含真实抓包回放）、分包/粘包/坏数据重同步、YAML schema 正反用例、配置流程全路径、两种命名模式的实体构造、manifest/strings/translations 一致性。
+`python tools/selfcheck.py` —— 不需要安装 Home Assistant，用桩模块加载集成，跑 165 项检查：协议字节级断言（含真实抓包回放）、分包/粘包/坏数据重同步、YAML schema 正反用例、配置流程全路径、两种命名模式的实体构造、manifest/strings/translations 一致性。
 
 ## 限制
 

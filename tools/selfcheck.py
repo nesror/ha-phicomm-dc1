@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import os
 import sys
 import types
@@ -782,6 +783,31 @@ for key in ('config.step.user', 'config.step.manual', 'config.step.discovery_con
 hacs = json.load(open(os.path.join(ROOT, 'hacs.json'), encoding='utf-8'))
 check('hacs content path', hacs['content'], ['custom_components/phicomm_dc1'])
 check_true('hacs render_readme', hacs.get('render_readme'))
+
+section('9. README 内部链接')
+
+
+def github_slug(heading: str) -> str:
+    """Approximate github-slugger: lowercase, drop punctuation, spaces -> '-'."""
+    text = heading.lstrip('#').strip().lower()
+    text = re.sub(r'[^\w\s-]', '', text, flags=re.UNICODE)
+    return re.sub(r'\s', '-', text.strip())
+
+
+readme_path = os.path.join(ROOT, 'README.md')
+readme = open(readme_path, encoding='utf-8').read()
+anchors = {github_slug(h) for h in re.findall(r'^#{1,6}\s+.*$', readme, re.M)}
+internal = re.findall(r'\[([^\]]+)\]\((#[^)]+)\)', readme)
+broken = [link for _text, link in internal if link[1:] not in anchors]
+check_true('README has headings', len(anchors) > 10)
+check('README internal anchors all resolve', broken, [])
+
+# every documented step must be listed in the table of contents
+steps = [h for h in re.findall(r'^##\s+(第\s*\d+\s*步.*|原理：.*)$', readme, re.M)]
+toc_targets = {link[1:] for _t, link in internal}
+missing_from_toc = [github_slug(s) for s in steps if github_slug(s) not in toc_targets]
+check('all steps linked from the TOC', missing_from_toc, [])
+check_true('TOC covers the numbered steps', len(steps) >= 4)
 
 section('结果')
 print(f'{CHECKS} checks run')
