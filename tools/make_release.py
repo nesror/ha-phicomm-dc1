@@ -7,13 +7,13 @@ Usage: python tools/make_release.py <tag> <release-notes-file> [--draft]
 from __future__ import annotations
 
 import json
-import os
+
 import subprocess
 import sys
 import urllib.error
 import urllib.request
 
-REPO = "nesror/Phicomm-DC1-Smart-Power-Strip"
+REPO = "nesror/ha-phicomm-dc1"
 
 
 def git_token() -> str:

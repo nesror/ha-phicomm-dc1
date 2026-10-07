@@ -11,6 +11,7 @@
 ## 目录
 
 - [原理：为什么必须先改 DNS](#原理为什么必须先改-dns)
+- [第 0 步：配网（新插座或复位过才需要）](#第-0步配网新插座或复位过才需要)
 - [第 1 步：在路由器上把域名指到 Home Assistant](#第-1步在路由器上把域名指到-home-assistant)
 - [第 2 步：安装集成](#第-2步安装集成)
 - [第 3 步：添加插排（UI / 自动发现）](#第-3步添加插排ui--自动发现)
@@ -50,6 +51,79 @@ DC1 这类斐讯插座**没有本地控制接口**，固件里也不会监听任
 
 > 也正因为如此，**8000 端口只能有一个监听者**。如果之前用 Node-RED 跑过同样的方案，必须先禁用
 > 那个流程，否则本集成会报"无法监听 8000 端口"。
+
+---
+
+## 第 0 步：配网（新插座或复位过才需要）
+
+插座必须先连上你家 WiFi，才谈得上解析域名、拨号到 HA。**已经在正常使用的插座跳过这一步。**
+
+需要配网的两种情况：全新/二手的 DC1，或者你长按复位过的插座。判断方法很简单——
+插座指示灯**快速闪烁**就是在等配网；常亮说明已经入网了。
+
+### 方式 A：配网小程序 / App
+
+斐讯官方"家享"App 已经停服且各大应用商店都搜不到了，现在只能用社区维护的第三方工具：
+
+- 微信小程序里搜 **`斐讯配网`** / **`DC1配网`** / **`斐讯插座`**（这类小程序换过好几拨，
+  以你搜到还能用的那个为准，名字不作保证）。
+- 安卓端也有人用通用的 UDP 发包 App（见方式 B 的第 4 步，任何能自定义源端口、
+  往指定 IP 发 UDP 报文的工具都行）。
+
+小程序的原理都是方式 B，只是把发包过程自动化了。**手机要先连上家里的 2.4GHz WiFi**
+（DC1 不支持 5GHz），并按提示临时把手机连到插座自己的热点上。
+
+### 方式 B：手动 UDP 配网（最可靠，不依赖任何 App）
+
+下面这套参数来自社区长期验证的做法（也是原 Node-RED 方案里记录的方式）：
+
+1. **复位**：长按插座的总开关约 3 秒，直到指示灯开始快闪。
+2. **连插座的热点**：手机上会出现一个 SSID 以 **`PHI_PLUG`** 开头的开放热点，连上它。
+   连上后你的手机/电脑会拿到 `192.168.4.x` 的地址，插座自己是网关 `192.168.4.1`。
+3. **发包**：目标 `192.168.4.1:7550`，**源端口也必须是 7550**，内容是一段 JSON，
+   **末尾必须补一个换行 `\n`**（少了换行插座不认）。
+
+```sh
+# 注意 ssid / password 换成你自己的；末尾的 echo 用来补那个换行
+echo '{"header":"phi-plug-0001","uuid":"identify291f","action":"wifi=","auth":"","params":{"ssid":"iOT","password":"你的wifi密码"}}' \
+  | nc -u -p 7550 -w 3 192.168.4.1 7550
+```
+
+或者用 Python（Windows 上没有 nc 时用这个）：
+
+```python
+import socket
+
+packet = (
+    b'{"header":"phi-plug-0001","uuid":"identify291f","action":"wifi=","auth":"",'
+    b'"params":{"ssid":"iOT","password":"你的wifi密码"}}\n'   # 末尾换行不能省
+)
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+sock.bind(("0.0.0.0", 7550))          # 源端口固定 7550
+sock.settimeout(5)
+sock.sendto(packet, ("192.168.4.1", 7550))
+try:
+    print("插座回应:", sock.recvfrom(1024))   # 收到回包即表示配网信息已被接受
+except socket.timeout:
+    print("没收到回包，检查是否连上了 PHI_PLUG 热点、源端口是否为 7550")
+```
+
+4. **等结果**：指示灯停止快闪变常亮，说明已经入网。此时它会立刻去解析
+   `smartplugconnect.phicomm.com`——**如果第 1 步的 DNS 覆盖已经做好，插座会直接连上 HA，
+   不需要再断电重插**。
+
+### 配网常见坑
+
+- **只支持 2.4GHz**。路由器如果 2.4G/5G 同名，建议先临时分开或关掉 5G 优先。
+- **WiFi 密码里的特殊字符**（尤其 `"` `\` `{` `}` `,`）会破坏那段 JSON。可以先临时把
+  WiFi 密码改成纯字母数字，配网成功后再改回去（插座记的是当时那次的凭据，改密码后需要重新配网）。
+- 路由器开了**AP 隔离 / 客户端隔离**会导致手机连上插座热点却发不到 `192.168.4.1`。
+- 发完包没反应，多半是漏了末尾换行，或源端口没绑成 7550。
+
+> 方式 B 的参数（`192.168.4.1`、`7550`、报文格式、需要补换行）来自社区长期验证的通行做法，
+> 我没有手上有可复位的 DC1 可以当场复现，如果你实测有出入欢迎开 issue 更正。
 
 ---
 
@@ -107,7 +181,7 @@ Address:  198.18.1.87         ← 这是代理软件的 fake-IP，说明你查�
 
 ### 方式 A：HACS（推荐）
 
-1. `HACS → Integrations → ⋮ → Custom repositories`，Add，填 `https://github.com/nesror/Phicomm-DC1-Smart-Power-Strip`，
+1. `HACS → Integrations → ⋮ → Custom repositories`，Add，填 `https://github.com/nesror/ha-phicomm-dc1`，
    Category 选 **Integration**。
 2. 回到 HACS 的 Integrations 列表，找到 **Phicomm DC1 Smart Power Strip** → Download。
 3. **重启 Home Assistant**（自定义集成必须重启才会被加载）。
@@ -341,6 +415,14 @@ called home".
 
 Setup:
 
+0. **Provision the strip** (only for a new or reset unit — skip if it already works).
+   Hold the master button ~3 s until the LED blinks fast, join the strip's own open
+   AP (`PHI_PLUG…`), then send the Wi-Fi credentials as a UDP datagram to
+   `192.168.4.1:7550` **from source port 7550**, with a trailing newline:
+   `{"header":"phi-plug-0001","uuid":"identify291f","action":"wifi=","auth":"","params":{"ssid":"…","password":"…"}}`.
+   Community mini-programs that automate this exist — search WeChat for
+   `斐讯配网` / `DC1配网`; the official Phicomm app is gone. 2.4 GHz only.
+   See 第 0 步 above for copy-pasteable `nc` and Python examples.
 1. **Router DNS**: `address=/smartplugconnect.phicomm.com/<HA_IP>` in dnsmasq
    (OpenWrt: `uci add dhcp domain` …). Verify with
    `nslookup smartplugconnect.phicomm.com <router-ip>` — beware fake-IP proxy DNS on
