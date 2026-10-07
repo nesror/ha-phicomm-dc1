@@ -1,0 +1,6 @@
+{
+  "name": "Phicomm DC1 Smart Power Strip",
+  "render_readme": true,
+  "content": ["custom_components/phicomm_dc1"],
+  "homeassistant": "2025.2.0"
+}

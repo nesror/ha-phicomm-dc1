@@ -1,0 +1,73 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Pick a power strip",
+        "description": "{count} Phicomm DC1 strip(s) have already dialled in to this host. Pick the one you want to add.",
+        "data": {
+          "pick": "Power strip"
+        }
+      },
+      "manual": {
+        "title": "Power strip details",
+        "description": "The MAC is printed on the label, for example 68:C6:3A:81:F7:E6. Power-cycle the strip first: it has to dial in before it can be added.",
+        "data": {
+          "mac": "MAC address",
+          "name": "Name (optional)",
+          "port": "Listen port"
+        }
+      },
+      "discovery_confirm": {
+        "title": "Phicomm DC1 strip found",
+        "description": "MAC: {mac}\nSource address: {address}\nModel: {device_type}",
+        "data": {
+          "name": "Name (optional)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This power strip is already configured.",
+      "invalid_mac": "The packet did not carry a usable MAC address."
+    },
+    "error": {
+      "invalid_mac": "Not a valid MAC address. Expected 12 hex digits, e.g. 68:C6:3A:81:F7:E6.",
+      "port_conflict": "This host is already listening on port {running_port}; only one service can own that port."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Phicomm DC1 options",
+        "description": "Strip: {mac}",
+        "data": {
+          "name": "Name",
+          "auto_add": "Add newly discovered strips automatically"
+        }
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "master": {
+        "name": "Master switch"
+      },
+      "socket_1": {
+        "name": "Socket 1"
+      },
+      "socket_2": {
+        "name": "Socket 2"
+      },
+      "socket_3": {
+        "name": "Socket 3"
+      }
+    },
+    "sensor": {
+      "voltage": {
+        "name": "Voltage"
+      },
+      "power": {
+        "name": "Power"
+      }
+    }
+  }
+}

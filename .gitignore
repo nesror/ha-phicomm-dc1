@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- phicomm_dc1 项目专属 ---
+homeassistant/
+config/
+.coverage
+.pytest_cache/
