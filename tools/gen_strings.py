@@ -35,6 +35,13 @@ EN = {
         },
         "abort": {
             "already_configured": "This power strip is already configured.",
+            "configured_in_yaml": (
+                "This MAC is declared in your YAML configuration (the plugs list under "
+                "`phicomm_dc1:`). YAML and the UI cannot manage the same strip at the "
+                "same time: remove it from YAML and restart Home Assistant before "
+                "adding it here. Existing entity ids are kept when you do, because both "
+                "modes share the same unique ids."
+            ),
             "invalid_mac": "The packet did not carry a usable MAC address.",
         },
         "error": {
@@ -91,6 +98,12 @@ ZH = {
         },
         "abort": {
             "already_configured": "这个插排已经添加过了。",
+            "configured_in_yaml": (
+                "这个 MAC 已经在 YAML 配置里声明了（phicomm_dc1: 下的 plugs 列表）。"
+                "YAML 和 UI 不能同时管理同一台插排：请先把它从 YAML 里去掉并重启 "
+                "Home Assistant，再回来添加。因为两种模式共用同一套 unique_id，"
+                "去掉 YAML 后重新添加会保留原有的 entity_id。"
+            ),
             "invalid_mac": "报文里没有可用的 MAC 地址。",
         },
         "error": {

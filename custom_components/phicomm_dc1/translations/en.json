@@ -27,6 +27,7 @@
     },
     "abort": {
       "already_configured": "This power strip is already configured.",
+      "configured_in_yaml": "This MAC is declared in your YAML configuration (the plugs list under `phicomm_dc1:`). YAML and the UI cannot manage the same strip at the same time: remove it from YAML and restart Home Assistant before adding it here. Existing entity ids are kept when you do, because both modes share the same unique ids.",
       "invalid_mac": "The packet did not carry a usable MAC address."
     },
     "error": {

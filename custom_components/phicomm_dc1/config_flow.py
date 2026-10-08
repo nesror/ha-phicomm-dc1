@@ -28,16 +28,37 @@ def _entries(hass: HomeAssistant) -> list[ConfigEntry]:
     return hass.config_entries.async_entries(DOMAIN)
 
 
-def _configured_macs(hass: HomeAssistant) -> set[str]:
-    """Every MAC that is already wired up, from either the UI or YAML."""
+def _entry_macs(hass: HomeAssistant) -> set[str]:
+    """MACs added through the UI."""
+    return {normalize_mac(entry.data.get(CONF_MAC)) or "" for entry in _entries(hass)} - {""}
+
+
+def _yaml_macs(hass: HomeAssistant) -> set[str]:
+    """MACs declared in the YAML block; these cannot be managed from the UI."""
     from . import hub_of
 
-    macs = {normalize_mac(entry.data.get(CONF_MAC)) or "" for entry in _entries(hass)}
     hub = hub_of(hass)
-    if hub is not None:
-        macs |= set(hub.plugs)
-    macs.discard("")
-    return macs
+    if hub is None:
+        return set()
+    return set(hub.plugs) - _entry_macs(hass)
+
+
+def _configured_macs(hass: HomeAssistant) -> set[str]:
+    """Every MAC that is already wired up, from either the UI or YAML."""
+    return _entry_macs(hass) | _yaml_macs(hass)
+
+
+def _taken_because(hass: HomeAssistant, mac: str) -> str | None:
+    """Why this MAC is unavailable: ``already_configured``, ``configured_in_yaml`` or None.
+
+    Saying "already added" for a MAC that is only declared in YAML sends people
+    looking for a config entry that does not exist, so name the real cause.
+    """
+    if mac in _entry_macs(hass):
+        return "already_configured"
+    if mac in _yaml_macs(hass):
+        return "configured_in_yaml"
+    return None
 
 
 def _detected(hass: HomeAssistant) -> list[tuple[str, str]]:
@@ -147,8 +168,8 @@ class Dc1ConfigFlow(ConfigFlow, domain=DOMAIN):
 
         await self.async_set_unique_id(mac)
         self._abort_if_unique_id_configured()
-        if mac in _configured_macs(self.hass):
-            return self.async_abort(reason="already_configured")
+        if (taken := _taken_because(self.hass, mac)) is not None:
+            return self.async_abort(reason=taken)
 
         self._mac = mac
         self._meta = discovery_info
@@ -191,8 +212,8 @@ class Dc1ConfigFlow(ConfigFlow, domain=DOMAIN):
 
         await self.async_set_unique_id(mac)
         self._abort_if_unique_id_configured()
-        if mac in _configured_macs(self.hass):
-            return self.async_abort(reason="already_configured")
+        if (taken := _taken_because(self.hass, mac)) is not None:
+            return self.async_abort(reason=taken)
 
         hub = hub_of(self.hass)
         if hub is not None and hub.port != self._port:

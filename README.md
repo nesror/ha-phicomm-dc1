@@ -256,9 +256,31 @@ sensor:
 - `switches` 必须正好 4 项，顺序就是**位序**；某一项写 `null` 表示不创建该开关。
 - 想改某个孔对应的 entity_id，只改数组里那一项的字符串即可，不用碰硬件。
 - 不写 `voltage` / `power` 就不创建对应传感器。
-- YAML 模式下实体**不进实体注册表**（没有 config entry 可挂），因此没有设备分组；
-  这是 Home Assistant 的限制（2026 起设备必须绑定 config entry）。需要设备分组就用 UI 模式。
-- 两种模式可以共存，但**同一个 MAC 请只用一种方式配置**，否则会撞 unique_id。
+- YAML 模式的实体**照样进实体注册表**（有 `unique_id`，所以 entity_id 稳定、重启不丢），
+  但它们的 `config_entry_id` 是空的，因此**挂不到设备上**。HA 2026 起硬性要求
+  "设备必须属于某个 config entry"（直接建会被 `Can't link device to unknown config entry None`
+  拒绝），所以 YAML 模式下：集成页不会出现这张卡、`设置 → 设备与服务` 里看不到设备、
+  实体只能在"设备与服务 → 实体"列表里找到。这是 HA 的限制，不是本集成的 bug。
+- 两种模式**不能管同一台插排**：同一个 MAC 只在一种模式里配置。想在 UI 里添加一个
+  YAML 已声明的 MAC，会中止并提示"这个 MAC 已在 YAML 配置里声明"。
+
+### 从 YAML 迁到 UI（想要设备分组就照这个来）
+
+1. 把 YAML 那块停掉。用 `packages/` 的话，最省事的是把文件改名成
+   `phicomm_dc1.yaml~`（HA 的 `include_dir_named` 只吃 `.yaml`，改名即停用，且随时可改回来）。
+2. 重启 Home Assistant。**不要**在这一步去删实体注册表里的旧条目。
+3. `设置 → 设备与服务 → 添加集成 → Phicomm DC1`，按 MAC 添加。
+
+关键点：两种模式**共用同一套 `unique_id`**（`phicomm_dc1:<mac>:<位>`），所以第 3 步 HA 会
+**认领已经存在的注册表条目**，而不是新建一套 —— 也就是说 `switch.dc1_swiitch1` 这类
+entity_id、以及你在实体注册表里改过的友好名/图标/区域都会**原样保留**，只是额外补上了
+`config_entry_id` 和 `device_id`，设备卡片随之出现。仪表盘和既有自动化不用改。
+
+> 万一 HA 没有认领、而是往日志里打了
+> `Platform phicomm_dc1 does not generate unique IDs. ID ... is already used by ...`，
+> 说明你那个 HA 版本不允许无 config entry 的条目被认领。处理方式：停掉 YAML、重启后
+> 把 `设置 → 设备与服务 → 实体` 里那批 `phicomm_dc1` 的"孤立"实体逐个删除，再重新添加。
+> 代价是 entity_id 会按"设备名 + 通道"重新生成，需要改仪表盘引用。
 
 ---
 
@@ -385,8 +407,7 @@ python tools/selfcheck.py
 
 ## 限制与安全说明
 
-- **一个主机一个监听**：8000 端口独占。
-- **只支持 DC1 系列**（`PLUG_DC1*`）。DC2、S7 等型号报文不同，未测试。
+- **一个主机一个监听**：8000 端口独占。- **只支持 DC1 系列**（`PLUG_DC1*`）。DC2、S7 等型号报文不同，未测试。
 - **插座必须能解析到 HA**。走公网 DNS、或插座在另一个 VLAN/SSID 且被隔离，都会失败。
 - **明文、无鉴权**。这条链路上原本就没有任何认证（斐讯云端时代也是这样），所以：
   - 不要把 HA 的 8000 端口映射到公网；

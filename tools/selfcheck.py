@@ -714,6 +714,36 @@ async def flow_scenarios():
     check('duplicate discovery aborted', out['type'], 'abort')
     check('abort reason', out['reason'], 'already_configured')
 
+    # --- a MAC that only lives in YAML must say so, not "already added" ---
+    yaml_only_hub = hub.Dc1Hub(
+        SimpleNamespace(loop=asyncio.get_running_loop()),
+        port=8000, refresh_interval=0, stale_timeout=0, query_debounce=0.0,
+    )
+    yaml_only_hub.set_plugs([hub.Dc1Plug('AA:BB:CC:DD:EE:09', 'Y', ['a', 'b', 'c', 'd'])])
+    hass = FakeHass()
+    hass.data[const.DOMAIN] = SimpleNamespace(hub=yaml_only_hub, port=8000, entry_macs={})
+    hass.data[const.DATA_YAML_PLUGS] = dict(yaml, auto_add=False)
+    flow = make_flow(hass)
+    out = await flow.async_step_discovery({'mac': 'AA:BB:CC:DD:EE:09'})
+    check('yaml-only MAC aborts', out['type'], 'abort')
+    check('yaml-only MAC names YAML as the cause', out['reason'], 'configured_in_yaml')
+    # the manual UI path must report the same thing
+    flow = make_flow(hass)
+    out = await flow.async_step_manual(
+        {'mac': 'AA:BB:CC:DD:EE:09', 'name': '客厅', 'port': 8000}
+    )
+    check('UI add of a yaml MAC is blocked too',
+          (out['type'], out.get('reason')), ('abort', 'configured_in_yaml'))
+    # ... but a MAC that is not in YAML can still be added while YAML is active
+    flow = make_flow(hass)
+    out = await flow.async_step_discovery({'mac': 'AA:BB:CC:DD:EE:10'})
+    check('non-yaml MAC still discovered', out['type'], 'form')
+    check('yaml MACs excluded from the detected list',
+          [m for m, _l in config_flow._detected(hass)], [])
+    check('entry MACs and yaml MACs are separated',
+          (config_flow._entry_macs(hass), sorted(config_flow._yaml_macs(hass))),
+          (set(), ['AA:BB:CC:DD:EE:09']))
+
     # --- the hub discovery hook fires a flow ------------------------------
     hass = FakeHass()
     cb = init._make_discovery_callback(hass)
@@ -771,7 +801,8 @@ for fname in ('en.json', 'zh.json', 'zh-Hans.json'):
     check(f'{fname} has no missing keys', base_tree - key_tree(data), set())
 
 for key in ('config.step.user', 'config.step.manual', 'config.step.discovery_confirm',
-            'config.abort.already_configured', 'config.error.invalid_mac',
+            'config.abort.already_configured', 'config.abort.configured_in_yaml',
+            'config.error.invalid_mac',
             'config.error.port_conflict', 'options.step.init',
             'entity.switch.master', 'entity.switch.socket_3',
             'entity.sensor.voltage', 'entity.sensor.power'):
